@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IT Issue Log — Avoncourt Packaging Ltd</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --navy:#1F4E5F; --navy-dark:#163a47; --red:#B00020; --red-bg:#FDEDEE;
+    --ink:#1c2b30; --muted:#5b6b70; --line:#d8dee0; --bg:#f6f8f9;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--bg); color:var(--ink);
+  }
+  header{
+    background:var(--navy); color:#fff; padding:20px 24px;
+  }
+  header .kicker{font-size:12px; letter-spacing:.5px; opacity:.85; font-weight:700; text-transform:uppercase;}
+  header h1{margin:4px 0 0; font-size:22px;}
+  .wrap{max-width:760px; margin:0 auto; padding:24px 16px 60px;}
+  .tabs{display:flex; gap:8px; margin-bottom:20px;}
+  .tab{
+    flex:1; text-align:center; padding:10px 12px; border-radius:8px;
+    background:#fff; border:1px solid var(--line); cursor:pointer;
+    font-weight:600; font-size:14px; color:var(--muted);
+  }
+  .tab.active{background:var(--navy); color:#fff; border-color:var(--navy);}
+  .card{
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:20px 22px; margin-bottom:16px;
+  }
+  .callout{
+    background:var(--red-bg); border:1.5px solid var(--red); border-radius:8px;
+    padding:12px 16px; font-size:13.5px; color:#8a0019; margin-bottom:20px; font-weight:600;
+  }
+  .callout a{color:#8a0019;}
+  label{display:block; font-size:13px; font-weight:600; margin:14px 0 5px; color:var(--ink);}
+  label:first-child{margin-top:0;}
+  input[type=text], input[type=email], input[type=tel], textarea, select{
+    width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:6px;
+    font-size:14px; font-family:inherit; background:#fff;
+  }
+  textarea{min-height:90px; resize:vertical;}
+  .hint{font-size:12px; color:var(--muted); margin-top:4px;}
+  button{
+    background:var(--navy); color:#fff; border:none; padding:10px 18px;
+    border-radius:6px; font-size:14px; font-weight:600; cursor:pointer; margin-top:18px;
+  }
+  button:hover{background:var(--navy-dark);}
+  button.secondary{background:#fff; color:var(--navy); border:1px solid var(--navy);}
+  button:disabled{opacity:.5; cursor:not-allowed;}
+  .msg{margin-top:14px; padding:10px 12px; border-radius:6px; font-size:13.5px; display:none;}
+  .msg.ok{background:#e7f6ec; color:#1e6b3a; display:block;}
+  .msg.err{background:var(--red-bg); color:var(--red); display:block;}
+  .hidden{display:none;}
+  table{width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;}
+  th,td{text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top;}
+  th{color:var(--muted); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.3px;}
+  td select, td input{font-size:12.5px; padding:5px 6px;}
+  .badge{display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700;}
+  .badge.Open{background:#fdecd2; color:#8a5a00;}
+  .badge.InProgress{background:#dbeafe; color:#1d4ed8;}
+  .badge.EscalatedtoEkco{background:#f3e8ff; color:#7e22ce;}
+  .badge.Resolved{background:#dcfce7; color:#15803d;}
+  .row-save{font-size:11.5px; padding:5px 10px; margin-top:0;}
+  footer{text-align:center; font-size:11.5px; color:var(--muted); padding:20px;}
+  .otp-row{display:flex; gap:8px; align-items:flex-end;}
+  .otp-row > div{flex:1;}
+  .small{font-size:12px; color:var(--muted);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap" style="padding:0;">
+    <div class="kicker">Avoncourt Packaging Ltd</div>
+    <h1>IT Issue Log</h1>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="callout">
+    Suspected security issue (phishing, a lock-screen message, compromised account) or something urgent/production-stopping?
+    Contact Philip O'Crowley directly — phone, Teams, or in person. Don't wait on this form for anything like that.
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" id="tabReport">Report an issue</div>
+    <div class="tab" id="tabView">View log (restricted)</div>
+  </div>
+
+  <!-- ===================== REPORT FORM ===================== -->
+  <div class="card" id="panelReport">
+    <form id="issueForm">
+      <label for="f_name">Your name *</label>
+      <input type="text" id="f_name" required>
+
+      <label for="f_dept">Department</label>
+      <input type="text" id="f_dept" placeholder="e.g. Production, Stores, Quality">
+
+      <label for="f_device">Device / system</label>
+      <input type="text" id="f_device" placeholder="e.g. your PC, a shared tablet, the office printer">
+
+      <label for="f_category">Category *</label>
+      <select id="f_category" required>
+        <option value="" disabled selected>Select one</option>
+        <option>Hardware</option>
+        <option>Software</option>
+        <option>Network / Wi-Fi</option>
+        <option>Printer / Label Printer</option>
+        <option>Login / Access</option>
+        <option>Other</option>
+      </select>
+
+      <label for="f_desc">What's happening? *</label>
+      <textarea id="f_desc" required placeholder="Describe the issue, when it started, and anything you've already tried."></textarea>
+
+      <label for="f_shot">Screenshot (optional)</label>
+      <input type="file" id="f_shot" accept="image/*">
+      <div class="hint">Only if you can safely take one — no need to go out of your way.</div>
+
+      <button type="submit" id="submitBtn">Submit</button>
+      <div class="msg" id="reportMsg"></div>
+    </form>
+  </div>
+
+  <!-- ===================== VIEW LOG (OTP) ===================== -->
+  <div class="card hidden" id="panelView">
+
+    <div id="otpStep1">
+      <label for="v_email">Your email</label>
+      <input type="email" id="v_email" placeholder="you@avoncourt.com">
+      <button id="sendCodeBtn">Send one-time code</button>
+      <div class="msg" id="otpMsg1"></div>
+    </div>
+
+    <div id="otpStep2" class="hidden">
+      <div class="small" style="margin-bottom:8px;">Enter the 6-digit code emailed to you.</div>
+      <div class="otp-row">
+        <div>
+          <label for="v_code">Code</label>
+          <input type="text" id="v_code" inputmode="numeric" placeholder="123456">
+        </div>
+        <button id="verifyBtn">Verify</button>
+      </div>
+      <div class="msg" id="otpMsg2"></div>
+    </div>
+
+    <div id="logView" class="hidden">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <div class="small">Signed in as <strong id="viewerEmail"></strong></div>
+        <button class="secondary row-save" id="signOutBtn">Sign out</button>
+      </div>
+      <button class="secondary row-save" id="refreshBtn" style="margin-top:0;">Refresh</button>
+      <div id="logTableWrap"></div>
+      <div class="msg" id="logMsg"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<footer>Avoncourt Packaging Ltd — internal tool. For anything urgent, contact Philip O'Crowley directly.</footer>
+
+<script>
+const SUPABASE_URL = "https://attnhvdollarpqfulmhe.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dG5odmRvbGxhcnBxZnVsbWhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzMzQzMzksImV4cCI6MjEwMDkxMDMzOX0.BbxmvSuD0xtpK61B90WBXnXmOHwOvz8z9wcIa4O4Exs";
+const BUCKET = "it-issue-screenshots";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ---------- Tabs ----------
+const tabReport = document.getElementById('tabReport');
+const tabView = document.getElementById('tabView');
+const panelReport = document.getElementById('panelReport');
+const panelView = document.getElementById('panelView');
+
+tabReport.onclick = () => {
+  tabReport.classList.add('active'); tabView.classList.remove('active');
+  panelReport.classList.remove('hidden'); panelView.classList.add('hidden');
+};
+tabView.onclick = () => {
+  tabView.classList.add('active'); tabReport.classList.remove('active');
+  panelView.classList.remove('hidden'); panelReport.classList.add('hidden');
+  checkSession();
+};
+
+function showMsg(el, text, ok){
+  el.textContent = text;
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+}
+
+// ---------- Report form ----------
+document.getElementById('issueForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const msg = document.getElementById('reportMsg');
+  btn.disabled = true;
+  msg.className = 'msg';
+
+  try {
+    const name = document.getElementById('f_name').value.trim();
+    const dept = document.getElementById('f_dept').value.trim();
+    const device = document.getElementById('f_device').value.trim();
+    const category = document.getElementById('f_category').value;
+    const description = document.getElementById('f_desc').value.trim();
+    const file = document.getElementById('f_shot').files[0];
+
+    let screenshot_path = null;
+    if (file) {
+      const path = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { error: upErr } = await sb.storage.from(BUCKET).upload(path, file);
+      if (upErr) throw upErr;
+      screenshot_path = path;
+    }
+
+    const { error } = await sb.from('it_issues').insert({
+      reporter_name: name,
+      department: dept || null,
+      device: device || null,
+      category,
+      description,
+      screenshot_path
+    });
+    if (error) throw error;
+
+    showMsg(msg, "Thanks — your issue has been logged. Philip will follow up if he needs more detail.", true);
+    document.getElementById('issueForm').reset();
+  } catch (err) {
+    console.error(err);
+    showMsg(msg, "Something went wrong submitting this — please try again, or contact Philip directly: " + (err.message || err), false);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- OTP sign-in ----------
+document.getElementById('sendCodeBtn').onclick = async () => {
+  const email = document.getElementById('v_email').value.trim();
+  const msg = document.getElementById('otpMsg1');
+  if (!email) { showMsg(msg, "Enter your email first.", false); return; }
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  if (error) { showMsg(msg, error.message, false); return; }
+  showMsg(msg, "Code sent — check your email.", true);
+  document.getElementById('otpStep2').classList.remove('hidden');
+};
+
+document.getElementById('verifyBtn').onclick = async () => {
+  const email = document.getElementById('v_email').value.trim();
+  const token = document.getElementById('v_code').value.trim();
+  const msg = document.getElementById('otpMsg2');
+  const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+  if (error) { showMsg(msg, error.message, false); return; }
+  await checkSession();
+};
+
+document.getElementById('signOutBtn').onclick = async () => {
+  await sb.auth.signOut();
+  location.reload();
+};
+document.getElementById('refreshBtn').onclick = loadLog;
+
+async function checkSession(){
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    document.getElementById('otpStep1').classList.add('hidden');
+    document.getElementById('otpStep2').classList.add('hidden');
+    document.getElementById('logView').classList.remove('hidden');
+    document.getElementById('viewerEmail').textContent = session.user.email;
+    loadLog();
+  }
+}
+
+const CATEGORY_STATUSES = ['Open','In Progress','Escalated to Ekco','Resolved'];
+
+async function loadLog(){
+  const wrap = document.getElementById('logTableWrap');
+  const msg = document.getElementById('logMsg');
+  msg.className = 'msg';
+  const { data, error } = await sb.from('it_issues').select('*').order('created_at', { ascending: false });
+  if (error) {
+    showMsg(msg, "Couldn't load the log — you may not be on the approved viewer list yet. " + error.message, false);
+    wrap.innerHTML = '';
+    return;
+  }
+  if (!data.length) { wrap.innerHTML = '<p class="small">No issues logged yet.</p>'; return; }
+
+  let html = '<table><thead><tr><th>Date</th><th>Reporter</th><th>Category</th><th>Description</th><th>Status</th><th>Ekco #</th><th></th></tr></thead><tbody>';
+  for (const row of data) {
+    const badgeClass = row.status.replace(/\s|\//g,'');
+    const d = new Date(row.created_at);
+    html += `<tr data-id="${row.id}">
+      <td>${d.toLocaleDateString('en-IE')}<br><span class="small">${d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})}</span></td>
+      <td>${escapeHtml(row.reporter_name)}${row.department ? '<br><span class="small">'+escapeHtml(row.department)+'</span>' : ''}</td>
+      <td>${escapeHtml(row.category)}${row.device ? '<br><span class="small">'+escapeHtml(row.device)+'</span>' : ''}</td>
+      <td style="max-width:220px;">${escapeHtml(row.description)}</td>
+      <td>
+        <span class="badge ${badgeClass}">${row.status}</span><br>
+        <select class="statusSel">
+          ${CATEGORY_STATUSES.map(s => `<option ${s===row.status?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="text" class="ekcoInput" value="${row.ekco_ticket_number ? escapeHtml(row.ekco_ticket_number) : ''}" placeholder="ticket #" style="width:90px;"></td>
+      <td><button class="row-save saveBtn">Save</button></td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('.saveBtn').forEach(btn => {
+    btn.onclick = async () => {
+      const tr = btn.closest('tr');
+      const id = tr.dataset.id;
+      const status = tr.querySelector('.statusSel').value;
+      const ekco = tr.querySelector('.ekcoInput').value.trim();
+      btn.disabled = true;
+      const { error } = await sb.from('it_issues')
+        .update({ status, ekco_ticket_number: ekco || null })
+        .eq('id', id);
+      btn.disabled = false;
+      if (error) { showMsg(msg, "Couldn't save that row: " + error.message, false); }
+      else { showMsg(msg, "Saved.", true); loadLog(); }
+    };
+  });
+}
+
+function escapeHtml(str){
+  return (str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// If already signed in on load (e.g. returning to the tab), reflect it
+checkSession();
+</script>
+
+</body>
+</html>
