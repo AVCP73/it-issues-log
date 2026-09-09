@@ -305,7 +305,10 @@ async function loadLog(){
         </select>
       </td>
       <td><input type="text" class="ekcoInput" value="${row.ekco_ticket_number ? escapeHtml(row.ekco_ticket_number) : ''}" placeholder="ticket #" style="width:90px;"></td>
-      <td><button class="row-save saveBtn">Save</button></td>
+      <td style="white-space:nowrap;">
+        <button class="row-save saveBtn">Save</button>
+        <button class="row-save deleteBtn" style="background:#fff; color:#B00020; border:1px solid #B00020;">Delete</button>
+      </td>
     </tr>`;
   }
   html += '</tbody></table>';
@@ -318,12 +321,36 @@ async function loadLog(){
       const status = tr.querySelector('.statusSel').value;
       const ekco = tr.querySelector('.ekcoInput').value.trim();
       btn.disabled = true;
-      const { error } = await sb.from('it_issues')
+      const { data, error } = await sb.from('it_issues')
         .update({ status, ekco_ticket_number: ekco || null })
-        .eq('id', id);
+        .eq('id', id)
+        .select();
       btn.disabled = false;
-      if (error) { showMsg(msg, "Couldn't save that row: " + error.message, false); }
-      else { showMsg(msg, "Saved.", true); loadLog(); }
+      if (error) {
+        showMsg(msg, "Couldn't save that row: " + error.message, false);
+      } else if (!data || data.length === 0) {
+        showMsg(msg, "Nothing was saved — your account may not be on the approved viewer list (check it_issue_viewers in Supabase matches your sign-in email exactly).", false);
+      } else {
+        showMsg(msg, "Saved.", true); loadLog();
+      }
+    };
+  });
+
+  wrap.querySelectorAll('.deleteBtn').forEach(btn => {
+    btn.onclick = async () => {
+      const tr = btn.closest('tr');
+      const id = tr.dataset.id;
+      if (!confirm('Delete this log entry? This cannot be undone.')) return;
+      btn.disabled = true;
+      const { data, error } = await sb.from('it_issues').delete().eq('id', id).select();
+      btn.disabled = false;
+      if (error) {
+        showMsg(msg, "Couldn't delete that row: " + error.message, false);
+      } else if (!data || data.length === 0) {
+        showMsg(msg, "Nothing was deleted — your account may not be on the approved viewer list.", false);
+      } else {
+        showMsg(msg, "Deleted.", true); loadLog();
+      }
     };
   });
 }
