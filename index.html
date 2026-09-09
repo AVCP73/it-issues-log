@@ -289,7 +289,7 @@ async function loadLog(){
   }
   if (!data.length) { wrap.innerHTML = '<p class="small">No issues logged yet.</p>'; return; }
 
-  let html = '<table><thead><tr><th>Date</th><th>Reporter</th><th>Category</th><th>Description</th><th>Status</th><th>Ekco #</th><th></th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Date</th><th>Reporter</th><th>Category</th><th>Description</th><th>Status</th><th>Ekco #</th><th>Notes</th><th></th></tr></thead><tbody>';
   for (const row of data) {
     const badgeClass = row.status.replace(/\s|\//g,'');
     const d = new Date(row.created_at);
@@ -305,6 +305,7 @@ async function loadLog(){
         </select>
       </td>
       <td><input type="text" class="ekcoInput" value="${row.ekco_ticket_number ? escapeHtml(row.ekco_ticket_number) : ''}" placeholder="ticket #" style="width:90px;"></td>
+      <td><textarea class="notesInput" placeholder="Internal notes" style="width:150px; min-height:44px; font-size:12.5px; padding:5px 6px;">${row.internal_notes ? escapeHtml(row.internal_notes) : ''}</textarea></td>
       <td style="white-space:nowrap;">
         <button class="row-save saveBtn">Save</button>
         <button class="row-save deleteBtn" style="background:#fff; color:#B00020; border:1px solid #B00020;">Delete</button>
@@ -320,9 +321,10 @@ async function loadLog(){
       const id = tr.dataset.id;
       const status = tr.querySelector('.statusSel').value;
       const ekco = tr.querySelector('.ekcoInput').value.trim();
+      const notes = tr.querySelector('.notesInput').value.trim();
       btn.disabled = true;
       const { data, error } = await sb.from('it_issues')
-        .update({ status, ekco_ticket_number: ekco || null })
+        .update({ status, ekco_ticket_number: ekco || null, internal_notes: notes || null })
         .eq('id', id)
         .select();
       btn.disabled = false;
