@@ -70,6 +70,47 @@
   .otp-row{display:flex; gap:8px; align-items:flex-end;}
   .otp-row > div{flex:1;}
   .small{font-size:12px; color:var(--muted);}
+
+  .filter-bar{display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 10px;}
+  .filter-pill{
+    padding:6px 13px; border-radius:20px; border:1px solid var(--line); background:#fff;
+    font-size:12.5px; font-weight:700; color:var(--muted); cursor:pointer; white-space:nowrap;
+  }
+  .filter-pill.active{background:var(--navy); border-color:var(--navy); color:#fff;}
+  #searchBox{margin:0 0 16px;}
+
+  .issue-card{
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; margin-bottom:10px; cursor:pointer;
+    transition: box-shadow .12s ease, transform .12s ease;
+  }
+  .issue-card:hover{box-shadow:0 3px 10px rgba(0,0,0,.09); transform:translateY(-1px);}
+  .issue-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .issue-card-title{font-weight:700; font-size:15px;}
+  .issue-card-sub{font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .issue-card-desc{
+    font-size:13px; color:var(--ink); margin-top:8px; line-height:1.4;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .tag-pills{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+  .tag-pill{font-size:11px; font-weight:700; padding:3px 9px; border-radius:12px; background:#eef2f3; color:var(--muted);}
+
+  .back-link{
+    display:inline-flex; align-items:center; gap:6px; color:var(--navy); font-weight:700;
+    font-size:13.5px; cursor:pointer; margin-bottom:16px; background:none; border:none; padding:0;
+  }
+  .detail-title{font-size:19px; font-weight:700; margin:0 0 4px;}
+  .detail-sub{font-size:13px; color:var(--muted); margin-bottom:16px;}
+  .detail-grid{display:grid; grid-template-columns:1fr 1fr; gap:2px 24px; margin-bottom:6px;}
+  .detail-field{margin-bottom:14px;}
+  .detail-field .flabel{font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:var(--muted); margin-bottom:3px;}
+  .detail-field .fval{font-size:14px;}
+  .detail-desc-box{
+    background:var(--bg); border:1px solid var(--line); border-radius:8px;
+    padding:12px 14px; font-size:13.5px; line-height:1.5; white-space:pre-wrap; margin-bottom:18px;
+  }
+  .detail-edit{border-top:1px solid var(--line); padding-top:16px; margin-top:4px;}
+  @media (max-width:520px){ .detail-grid{grid-template-columns:1fr;} }
 </style>
 </head>
 <body>
@@ -156,7 +197,15 @@
         <button class="secondary row-save" id="signOutBtn">Sign out</button>
       </div>
       <button class="secondary row-save" id="refreshBtn" style="margin-top:0;">Refresh</button>
-      <div id="logTableWrap"></div>
+
+      <div id="logListView">
+        <div class="filter-bar" id="filterBar"></div>
+        <input type="text" id="searchBox" placeholder="Search by reporter or description…">
+        <div id="cardsWrap"></div>
+      </div>
+
+      <div id="logDetailView" class="hidden"></div>
+
       <div class="msg" id="logMsg"></div>
     </div>
 
@@ -300,84 +349,218 @@ async function checkSession(){
 
 const CATEGORY_STATUSES = ['Open','In Progress','Escalated to Ekco','Resolved'];
 
+let issuesCache = [];
+let activeFilter = 'All';
+let activeSearch = '';
+let activeDetailId = null;
+
+document.getElementById('searchBox').addEventListener('input', (e) => {
+  activeSearch = e.target.value.trim().toLowerCase();
+  renderCards();
+});
+
 async function loadLog(){
-  const wrap = document.getElementById('logTableWrap');
   const msg = document.getElementById('logMsg');
   msg.className = 'msg';
   const { data, error } = await sb.from('it_issues').select('*').order('created_at', { ascending: false });
   if (error) {
     showMsg(msg, "Couldn't load the log — you may not be on the approved viewer list yet. " + error.message, false);
-    wrap.innerHTML = '';
+    issuesCache = [];
+    document.getElementById('cardsWrap').innerHTML = '';
+    document.getElementById('filterBar').innerHTML = '';
     return;
   }
-  if (!data.length) { wrap.innerHTML = '<p class="small">No issues logged yet.</p>'; return; }
+  issuesCache = data;
+  activeDetailId = null;
+  showListView();
+}
 
-  let html = '<table><thead><tr><th>Date</th><th>Reporter</th><th>Category</th><th>Description</th><th>Status</th><th>Ekco #</th><th>Notes</th><th></th></tr></thead><tbody>';
-  for (const row of data) {
+function showListView(){
+  document.getElementById('logDetailView').classList.add('hidden');
+  document.getElementById('logListView').classList.remove('hidden');
+  renderFilterBar();
+  renderCards();
+}
+
+function renderFilterBar(){
+  const bar = document.getElementById('filterBar');
+  const counts = { All: issuesCache.length };
+  CATEGORY_STATUSES.forEach(s => counts[s] = 0);
+  issuesCache.forEach(row => { counts[row.status] = (counts[row.status] || 0) + 1; });
+
+  const pills = ['All', ...CATEGORY_STATUSES];
+  bar.innerHTML = pills.map(p =>
+    `<button type="button" class="filter-pill ${p===activeFilter?'active':''}" data-filter="${escapeHtml(p)}">${escapeHtml(p)} (${counts[p] || 0})</button>`
+  ).join('');
+
+  bar.querySelectorAll('.filter-pill').forEach(btn => {
+    btn.onclick = () => {
+      activeFilter = btn.dataset.filter;
+      renderFilterBar();
+      renderCards();
+    };
+  });
+}
+
+function filteredIssues(){
+  return issuesCache.filter(row => {
+    if (activeFilter !== 'All' && row.status !== activeFilter) return false;
+    if (activeSearch) {
+      const hay = (row.reporter_name + ' ' + row.description + ' ' + (row.department||'') + ' ' + (row.device||'')).toLowerCase();
+      if (!hay.includes(activeSearch)) return false;
+    }
+    return true;
+  });
+}
+
+function renderCards(){
+  const wrap = document.getElementById('cardsWrap');
+  const rows = filteredIssues();
+  if (!issuesCache.length) { wrap.innerHTML = '<p class="small">No issues logged yet.</p>'; return; }
+  if (!rows.length) { wrap.innerHTML = '<p class="small">No issues match this filter.</p>'; return; }
+
+  wrap.innerHTML = rows.map(row => {
     const badgeClass = row.status.replace(/\s|\//g,'');
     const d = new Date(row.created_at);
-    html += `<tr data-id="${row.id}">
-      <td>${d.toLocaleDateString('en-IE')}<br><span class="small">${d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})}</span></td>
-      <td>${escapeHtml(row.reporter_name)}${row.department ? '<br><span class="small">'+escapeHtml(row.department)+'</span>' : ''}</td>
-      <td>${escapeHtml(row.category)}${row.device ? '<br><span class="small">'+escapeHtml(row.device)+'</span>' : ''}</td>
-      <td style="max-width:220px;">${escapeHtml(row.description)}</td>
-      <td>
-        <span class="badge ${badgeClass}">${row.status}</span><br>
-        <select class="statusSel">
-          ${CATEGORY_STATUSES.map(s => `<option ${s===row.status?'selected':''}>${s}</option>`).join('')}
-        </select>
-      </td>
-      <td><input type="text" class="ekcoInput" value="${row.ekco_ticket_number ? escapeHtml(row.ekco_ticket_number) : ''}" placeholder="ticket #" style="width:90px;"></td>
-      <td><textarea class="notesInput" placeholder="Internal notes" style="width:150px; min-height:44px; font-size:12.5px; padding:5px 6px;">${row.internal_notes ? escapeHtml(row.internal_notes) : ''}</textarea></td>
-      <td style="white-space:nowrap;">
-        <button class="row-save saveBtn">Save</button>
-        <button class="row-save deleteBtn" style="background:#fff; color:#B00020; border:1px solid #B00020;">Delete</button>
-      </td>
-    </tr>`;
+    const dateStr = d.toLocaleDateString('en-IE') + ' · ' + d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const pills = [];
+    if (row.ekco_ticket_number) pills.push(`Ekco #${escapeHtml(row.ekco_ticket_number)}`);
+    if (row.screenshot_path) pills.push('Photo attached');
+    if (row.internal_notes) pills.push('Has notes');
+    return `<div class="issue-card" data-id="${row.id}">
+      <div class="issue-card-top">
+        <div>
+          <div class="issue-card-title">${escapeHtml(row.reporter_name)} — ${escapeHtml(row.category)}</div>
+          <div class="issue-card-sub">${dateStr}${row.department ? ' · ' + escapeHtml(row.department) : ''}${row.device ? ' · ' + escapeHtml(row.device) : ''}</div>
+        </div>
+        <span class="badge ${badgeClass}">${row.status}</span>
+      </div>
+      <div class="issue-card-desc">${escapeHtml(row.description)}</div>
+      ${pills.length ? `<div class="tag-pills">${pills.map(p => `<span class="tag-pill">${p}</span>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('.issue-card').forEach(card => {
+    card.onclick = () => {
+      activeDetailId = card.dataset.id;
+      showDetailView(activeDetailId);
+    };
+  });
+}
+
+function showDetailView(id){
+  const row = issuesCache.find(r => r.id === id);
+  const msg = document.getElementById('logMsg');
+  msg.className = 'msg';
+  if (!row) { showListView(); return; }
+
+  document.getElementById('logListView').classList.add('hidden');
+  const detail = document.getElementById('logDetailView');
+  detail.classList.remove('hidden');
+
+  const badgeClass = row.status.replace(/\s|\//g,'');
+  const d = new Date(row.created_at);
+  const dateStr = d.toLocaleDateString('en-IE') + ' at ' + d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+
+  detail.innerHTML = `
+    <button type="button" class="back-link" id="backToListBtn">&larr; Back to log</button>
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+      <div>
+        <div class="detail-title">${escapeHtml(row.reporter_name)} — ${escapeHtml(row.category)}</div>
+        <div class="detail-sub">Logged ${dateStr}</div>
+      </div>
+      <span class="badge ${badgeClass}">${row.status}</span>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-field"><div class="flabel">Department</div><div class="fval">${row.department ? escapeHtml(row.department) : '<span class="small">—</span>'}</div></div>
+      <div class="detail-field"><div class="flabel">Device / system</div><div class="fval">${row.device ? escapeHtml(row.device) : '<span class="small">—</span>'}</div></div>
+    </div>
+
+    <div class="detail-field">
+      <div class="flabel">What's happening</div>
+      <div class="detail-desc-box">${escapeHtml(row.description)}</div>
+    </div>
+
+    <div class="detail-field">
+      <div class="flabel">Screenshot</div>
+      <div class="fval">${row.screenshot_path ? '<button type="button" class="row-save viewShotBtn" id="viewShotBtn">View attachment</button>' : '<span class="small">None attached</span>'}</div>
+    </div>
+
+    <div class="detail-edit">
+      <label for="d_status">Status</label>
+      <select id="d_status">
+        ${CATEGORY_STATUSES.map(s => `<option ${s===row.status?'selected':''}>${s}</option>`).join('')}
+      </select>
+
+      <label for="d_ekco">Ekco ticket #</label>
+      <input type="text" id="d_ekco" placeholder="ticket #" value="${row.ekco_ticket_number ? escapeHtml(row.ekco_ticket_number) : ''}">
+
+      <label for="d_notes">Internal notes</label>
+      <textarea id="d_notes" placeholder="Internal notes" style="min-height:80px;">${row.internal_notes ? escapeHtml(row.internal_notes) : ''}</textarea>
+
+      <button type="button" id="d_saveBtn">Save changes</button>
+      <button type="button" id="d_deleteBtn" class="secondary" style="color:#B00020; border-color:#B00020;">Delete entry</button>
+    </div>
+  `;
+
+  document.getElementById('backToListBtn').onclick = () => {
+    activeDetailId = null;
+    showListView();
+  };
+
+  const shotBtn = document.getElementById('viewShotBtn');
+  if (shotBtn) {
+    shotBtn.onclick = async () => {
+      shotBtn.disabled = true;
+      const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(row.screenshot_path, 3600);
+      shotBtn.disabled = false;
+      if (error || !data) {
+        showMsg(msg, "Couldn't open that photo: " + (error ? error.message : "no link returned"), false);
+      } else {
+        window.open(data.signedUrl, '_blank');
+      }
+    };
   }
-  html += '</tbody></table>';
-  wrap.innerHTML = html;
 
-  wrap.querySelectorAll('.saveBtn').forEach(btn => {
-    btn.onclick = async () => {
-      const tr = btn.closest('tr');
-      const id = tr.dataset.id;
-      const status = tr.querySelector('.statusSel').value;
-      const ekco = tr.querySelector('.ekcoInput').value.trim();
-      const notes = tr.querySelector('.notesInput').value.trim();
-      btn.disabled = true;
-      const { data, error } = await sb.from('it_issues')
-        .update({ status, ekco_ticket_number: ekco || null, internal_notes: notes || null })
-        .eq('id', id)
-        .select();
-      btn.disabled = false;
-      if (error) {
-        showMsg(msg, "Couldn't save that row: " + error.message, false);
-      } else if (!data || data.length === 0) {
-        showMsg(msg, "Nothing was saved — your account may not be on the approved viewer list (check it_issue_viewers in Supabase matches your sign-in email exactly).", false);
-      } else {
-        showMsg(msg, "Saved.", true); loadLog();
-      }
-    };
-  });
+  document.getElementById('d_saveBtn').onclick = async () => {
+    const btn = document.getElementById('d_saveBtn');
+    const status = document.getElementById('d_status').value;
+    const ekco = document.getElementById('d_ekco').value.trim();
+    const notes = document.getElementById('d_notes').value.trim();
+    btn.disabled = true;
+    const { data, error } = await sb.from('it_issues')
+      .update({ status, ekco_ticket_number: ekco || null, internal_notes: notes || null })
+      .eq('id', id)
+      .select();
+    btn.disabled = false;
+    if (error) {
+      showMsg(msg, "Couldn't save this: " + error.message, false);
+    } else if (!data || data.length === 0) {
+      showMsg(msg, "Nothing was saved — your account may not be on the approved viewer list (check it_issue_viewers in Supabase matches your sign-in email exactly).", false);
+    } else {
+      showMsg(msg, "Saved.", true);
+      await loadLog();
+      showDetailView(id);
+    }
+  };
 
-  wrap.querySelectorAll('.deleteBtn').forEach(btn => {
-    btn.onclick = async () => {
-      const tr = btn.closest('tr');
-      const id = tr.dataset.id;
-      if (!confirm('Delete this log entry? This cannot be undone.')) return;
-      btn.disabled = true;
-      const { data, error } = await sb.from('it_issues').delete().eq('id', id).select();
-      btn.disabled = false;
-      if (error) {
-        showMsg(msg, "Couldn't delete that row: " + error.message, false);
-      } else if (!data || data.length === 0) {
-        showMsg(msg, "Nothing was deleted — your account may not be on the approved viewer list.", false);
-      } else {
-        showMsg(msg, "Deleted.", true); loadLog();
-      }
-    };
-  });
+  document.getElementById('d_deleteBtn').onclick = async () => {
+    if (!confirm('Delete this log entry? This cannot be undone.')) return;
+    const btn = document.getElementById('d_deleteBtn');
+    btn.disabled = true;
+    const { data, error } = await sb.from('it_issues').delete().eq('id', id).select();
+    btn.disabled = false;
+    if (error) {
+      showMsg(msg, "Couldn't delete this: " + error.message, false);
+    } else if (!data || data.length === 0) {
+      showMsg(msg, "Nothing was deleted — your account may not be on the approved viewer list.", false);
+    } else {
+      activeDetailId = null;
+      await loadLog();
+      showMsg(document.getElementById('logMsg'), "Deleted.", true);
+    }
+  };
 }
 
 function escapeHtml(str){
