@@ -170,6 +170,7 @@
 const SUPABASE_URL = "https://attnhvdollarpqfulmhe.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dG5odmRvbGxhcnBxZnVsbWhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzMzQzMzksImV4cCI6MjEwMDkxMDMzOX0.BbxmvSuD0xtpK61B90WBXnXmOHwOvz8z9wcIa4O4Exs";
 const BUCKET = "it-issue-screenshots";
+const TEAMS_WEBHOOK_URL = "https://defaultaa141dc6ec394b73ac296cb880674c.93.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/01/workflows/c4c720a2559d40c7b0d099fc21911982/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XdXRI7_ucjgdFQGzozlQLsUp3y2Zy0Yswh_l-JygQ4w";
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -227,6 +228,27 @@ document.getElementById('issueForm').addEventListener('submit', async (e) => {
       screenshot_path
     });
     if (error) throw error;
+
+    // Best-effort Teams notification — if this fails, the issue is still logged,
+    // so we don't let it block the success message to the person reporting.
+    try {
+      await fetch(TEAMS_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          form: 'IT Issue Log',
+          summary: `New IT issue logged by ${name}${dept ? ' (' + dept + ')' : ''} — ${category}`,
+          reporter: name,
+          department: dept || '',
+          device: device || '',
+          category,
+          description,
+          submitted_at: new Date().toISOString()
+        })
+      });
+    } catch (notifyErr) {
+      console.error('Teams notification failed:', notifyErr);
+    }
 
     showMsg(msg, "Thanks — your issue has been logged. Philip will follow up if he needs more detail.", true);
     document.getElementById('issueForm').reset();
