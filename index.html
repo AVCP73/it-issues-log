@@ -243,7 +243,8 @@ document.getElementById('issueForm').addEventListener('submit', async (e) => {
           device: device || '',
           category,
           description,
-          submitted_at: new Date().toISOString()
+          submitted_at: new Date().toISOString(),
+          attachments: []
         })
       });
     } catch (notifyErr) {
