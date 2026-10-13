@@ -244,6 +244,23 @@ function showMsg(el, text, ok){
   el.className = 'msg ' + (ok ? 'ok' : 'err');
 }
 
+// Shrinks photos/screenshots on the device before upload - keeps Supabase storage small.
+async function shrinkImage(file, maxSide = 2000, quality = 0.85){
+  try {
+    if(!file || !/^image\//.test(file.type) || /gif|svg/.test(file.type)) return file;
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close && bmp.close();
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', quality));
+    if(!blob || blob.size >= file.size) return file;
+    const base = (file.name || 'photo').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
+    return new File([blob], base + '.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+  } catch(e){ console.warn('shrinkImage failed, uploading original', e); return file; }
+}
+
 // ---------- Report form ----------
 document.getElementById('issueForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -258,7 +275,7 @@ document.getElementById('issueForm').addEventListener('submit', async (e) => {
     const device = document.getElementById('f_device').value.trim();
     const category = document.getElementById('f_category').value;
     const description = document.getElementById('f_desc').value.trim();
-    const file = document.getElementById('f_shot').files[0];
+    const file = await shrinkImage(document.getElementById('f_shot').files[0]);
 
     let screenshot_path = null;
     if (file) {
